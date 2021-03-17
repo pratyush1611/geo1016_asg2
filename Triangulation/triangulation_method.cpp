@@ -25,7 +25,7 @@
 #include "triangulation.h"
 #include "matrix_algo.h"
 #include <easy3d/optimizer/optimizer_lm.h>
-
+#include <iostream>
 
 using namespace easy3d;
 
@@ -54,12 +54,13 @@ Matrix<double> to_Matrix(const mat &M) {
     return result;
 }
 
-Matrix<double> norm_trans(std::vector<vec3> pts)
+Matrix<double> norm_transform(std::vector<vec3> pts)
 {
-    Matrix<double> T (3,1, 0.0);
+    Matrix<double> T (3,3, 0.0);
     //1st calculate the centroid
-    vec3 centrd;
-    double avgx,avgy = 0.0, 0.0 ;
+
+    float avgx = 0.0;
+    float avgy = 0.0;
     for(auto & i : pts)
     {
         avgx += i.x;
@@ -69,11 +70,28 @@ Matrix<double> norm_trans(std::vector<vec3> pts)
     avgx/=pts.size() ;
     avgy/=pts.size() ;
 
-    centrd= {avgx, avgy, 1};
-    T.set_column(centrd,0);
-    return T;
-}
+    vec3 centrd {avgx, avgy, 1.0};
 
+    //translate the coordinates
+    //get mean distances
+//    std::vector<vec3> translated;
+    double mean_dist=0.0;
+    for(auto & j : pts)
+    {
+        vec3 temp = j - centrd;
+        mean_dist += temp.length();
+//        translated.push_back(temp);
+    }
+    mean_dist/=pts.size();
+    mean_dist = sqrt(2.0)/mean_dist;
+
+    T.set_row({mean_dist, 0.0, 0.0},0);
+    T.set_row({0.0, mean_dist, 0.0},1);
+    T.set_row({-1.0*centrd.x, -1.0*centrd.y, 1.0},2);
+
+    return T.transpose();
+}
+/*
 std::vector<vec3> centroidinator(std::vector<vec3> points_vec, std::vector<vec3> &translated)
 {
     //1st calculate the centroid
@@ -99,7 +117,7 @@ std::vector<vec3> centroidinator(std::vector<vec3> points_vec, std::vector<vec3>
 
     return translated;
 }
-
+*/
 /**
  * TODO: Finish this function for reconstructing 3D geometry from corresponding image points.
  * @return True on success, otherwise false. On success, the reconstructed 3D points must be written to 'points_3d'.
@@ -139,7 +157,7 @@ bool Triangulation::triangulation(
                  "\t    - delete ALL unrelated test or debug code and avoid unnecessary output.\n"
                  "\t    - include all the source code (original code framework + your implementation).\n"
                  "\t    - do NOT include the 'build' directory (which contains the intermediate files in a build step).\n"
-                 "\t    - make sure your code compiles and can reproduce your results without any modification.\n\n" << std::flush;
+                 "\t    - make sure your code compiles and can reproduce your results without any modification.\n\n" ;//<< std::flush;
 
     /// Easy3D provides fixed-size matrix types, e.g., mat2 (2x2), mat3 (3x3), mat4 (4x4), mat34 (3x4).
     /// To use these matrices, their sizes should be known to you at the compile-time (i.e., when compiling your code).
@@ -220,10 +238,12 @@ bool Triangulation::triangulation(
     // implementation starts ...
 
     // TODO: check if the input is valid (always good because you never known how others will call your function).
-
-    if(cx != cy) return false;
-    if(fx != fy) return false;
+    std::cout<<"checking print statement\n";
+//    if(cx != cy) return false;
+//    if(fx != fy) return false;
     if(points_0.size() <8 || points_1.size()<8 || points_0.size() != points_1.size() ) return false;
+    std::cout<<"if doesnt return \n";
+
     // TODO: Estimate relative pose of two views. This can be subdivided into
     //      - estimate the fundamental matrix F;
     //comput W matrix
@@ -232,15 +252,26 @@ bool Triangulation::triangulation(
     Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
     // iterate through the vector of points and craete rows of W on the go
 
-    // to normalize
-    // translate to the centroid fr each image plane
+    // to normalize get T and T'
+    Matrix<double> T = norm_transform(points_0);
+    Matrix<double> T_prime = norm_transform(points_1);
 
-    //or maybe just get a translation vector and a rotation matrix and then compute it in one go instead of a loop
-    std::vector<vec3> translate1, translate2;
-    centroidinator(points_0, translate1);
-    centroidinator(points_1, translate2);
+    std::cout<<"\nT is \n"<<T<<'\n';
+    std::cout<<"\nT' is \n"<<T_prime<<'\n';
 
+    //tranform coordinates
+    std::vector<vec3> q, q_prime;
+    for(auto &i: points_0)
+    {
+        Matrix<float> i_mat(3,1, i.data());
+//        auto temp = T * i_mat;
+//        q.push_back( temp);
+        std::cout<<i_mat;
+    }
+//    for(auto &i: points_1) q_prime.push_back(T_prime * i);
+    std::cout<<"q is \n"<<q;
 
+    //we find Fq
     for(int i =0 ; i<no_pt; i++)
     {
         std::vector<double> row_to_set = {(points_0[i].x * points_1[i].x), (points_0[i].y * points_1[i].x), (points_1[i].x ),
@@ -251,6 +282,7 @@ bool Triangulation::triangulation(
         W.set_row(row_to_set, i);
     }
 
+    //find F from T T' and Fq
 
     // estimate F
     // F is estimated as last column of Vt in SVD of W
