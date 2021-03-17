@@ -54,6 +54,26 @@ Matrix<double> to_Matrix(const mat &M) {
     return result;
 }
 
+Matrix<double> norm_trans(std::vector<vec3> pts)
+{
+    Matrix<double> T (3,1, 0.0);
+    //1st calculate the centroid
+    vec3 centrd;
+    double avgx,avgy = 0.0, 0.0 ;
+    for(auto & i : pts)
+    {
+        avgx += i.x;
+        avgy += i.y;
+    }
+
+    avgx/=pts.size() ;
+    avgy/=pts.size() ;
+
+    centrd= {avgx, avgy, 1};
+    T.set_column(centrd,0);
+    return T;
+}
+
 std::vector<vec3> centroidinator(std::vector<vec3> points_vec, std::vector<vec3> &translated)
 {
     //1st calculate the centroid
