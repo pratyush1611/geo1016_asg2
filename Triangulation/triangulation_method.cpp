@@ -104,7 +104,7 @@ bool Triangulation::triangulation(
     /// Below are a few examples showing some of these data structures and related APIs.
 
     /// ----------- fixed-size matrices
-
+    /*
     /// define a 3 by 4 matrix M (you can also define 3 by 4 matrix similarly)
     mat34 M(1.0f);  /// entries on the diagonal are initialized to be 1 and others to be 0.
 
@@ -160,13 +160,13 @@ bool Triangulation::triangulation(
 
     /// ----------- dynamic-size matrices
 
-//    /// define a non-fixed size matrix
-//    Matrix<double> W(2, 3, 0.0); // all entries initialized to 0.0.
-//
-//    /// set its first row by a 3D vector (1.1, 2.2, 3.3)
-//    W.set_row({ 1.1, 2.2, 3.3 }, 0);   // here "{ 1.1, 2.2, 3.3 }" is of type 'std::vector<double>'
+    /// define a non-fixed size matrix
+    Matrix<double> W(2, 3, 0.0); // all entries initialized to 0.0.
 
-    /// get the last column of a matrix
+    /// set its first row by a 3D vector (1.1, 2.2, 3.3)
+    W.set_row({ 1.1, 2.2, 3.3 }, 0);   // here "{ 1.1, 2.2, 3.3 }" is of type 'std::vector<double>'
+    */
+    // get the last column of a matrix
 //    std::vector<double> last_column = W.get_column(W.cols() - 1);
 
     // TODO: delete all above demo code in the final submission
@@ -187,6 +187,28 @@ bool Triangulation::triangulation(
     Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
     // iterate through the vector of points and craete rows of W on the go
 
+    // to normalize
+    // translate to the centroid fr each image plane
+    //calculate  centroid
+    vec3 centroid_1, centroid_2 ;
+    double avgx,avgy,avgx_prime,avgy_prime = 0,0,0;
+    for(int i=0; i<no_pt; i++)
+    {
+        avgx += points_0[i].x;
+        avgy += points_0[i].y;
+        avgx_prime += points_1[i].x;
+        avgy_prime += points_1[i].y;
+    }
+    avgx/=no_pt;
+    avgy/=no_pt;
+    avgx_prime/=no_pt;
+    avgy_prime/=no_pt;
+
+    centroid_1 = {avgx, avgy, 1};
+    centroid_2 = {avgx_prime, avgy_prime, 1};
+
+
+
     for(int i =0 ; i<no_pt; i++)
     {
         std::vector<double> row_to_set = {(points_0[i].x * points_1[i].x), (points_0[i].y * points_1[i].x), (points_1[i].x ),
@@ -199,9 +221,19 @@ bool Triangulation::triangulation(
 
 
     // estimate F
+    // F is estimated as last column of Vt in SVD of W
+    //SVD decomposition of the above W-matrix
+    Matrix<double> U(no_pt, no_pt, 0.0);
+    Matrix<double> S(no_pt, 9, 0.0);
+    Matrix<double> Vt(9, 9, 0.0);
+    svd_decompose(W, U, S, Vt);
 
+    // We get m by taking the last column of V
+//    std::vector<double> f = Vt.get_column(8);//get last col
+    std::vector<double> f = Vt.get_column(Vt.cols() - 1);
 
     //      - compute the essential matrix E;
+
     //      - recover rotation R and t.
 
     // TODO: Reconstruct 3D points. The main task is
@@ -217,5 +249,6 @@ bool Triangulation::triangulation(
     //          - function not implemented yet;
     //          - input not valid (e.g., not enough points, point numbers don't match);
     //          - encountered failure in any step.
-    return points_3d.size() > 0;
+//    return points_3d.size() > 0;
+    return true;
 }
