@@ -54,6 +54,31 @@ Matrix<double> to_Matrix(const mat &M) {
     return result;
 }
 
+std::vector<vec3> centroidinator(std::vector<vec3> points_vec, std::vector<vec3> &translated)
+{
+    //1st calculate the centroid
+    vec3 centrd;
+    double avgx,avgy = 0.0, 0.0 ;
+    for(auto & i : points_vec)
+    {
+        avgx += i.x;
+        avgy += i.y;
+    }
+
+    avgx/=points_vec.size() ;
+    avgy/=points_vec.size() ;
+
+    centrd= {avgx, avgy, 1};
+
+    //run a translation
+    for(auto & j : points_vec)
+    {
+        vec3 temp = j - centrd;
+        translated.push_back(temp);
+    }
+
+    return translated;
+}
 
 /**
  * TODO: Finish this function for reconstructing 3D geometry from corresponding image points.
@@ -189,24 +214,11 @@ bool Triangulation::triangulation(
 
     // to normalize
     // translate to the centroid fr each image plane
-    //calculate  centroid
-    vec3 centroid_1, centroid_2 ;
-    double avgx,avgy,avgx_prime,avgy_prime = 0,0,0;
-    for(int i=0; i<no_pt; i++)
-    {
-        avgx += points_0[i].x;
-        avgy += points_0[i].y;
-        avgx_prime += points_1[i].x;
-        avgy_prime += points_1[i].y;
-    }
-    avgx/=no_pt;
-    avgy/=no_pt;
-    avgx_prime/=no_pt;
-    avgy_prime/=no_pt;
 
-    centroid_1 = {avgx, avgy, 1};
-    centroid_2 = {avgx_prime, avgy_prime, 1};
-
+    //or maybe just get a translation vector and a rotation matrix and then compute it in one go instead of a loop
+    std::vector<vec3> translate1, translate2;
+    centroidinator(points_0, translate1);
+    centroidinator(points_1, translate2);
 
 
     for(int i =0 ; i<no_pt; i++)
