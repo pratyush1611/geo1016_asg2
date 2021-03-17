@@ -160,14 +160,14 @@ bool Triangulation::triangulation(
 
     /// ----------- dynamic-size matrices
 
-    /// define a non-fixed size matrix
-    Matrix<double> W(2, 3, 0.0); // all entries initialized to 0.0.
-
-    /// set its first row by a 3D vector (1.1, 2.2, 3.3)
-    W.set_row({ 1.1, 2.2, 3.3 }, 0);   // here "{ 1.1, 2.2, 3.3 }" is of type 'std::vector<double>'
+//    /// define a non-fixed size matrix
+//    Matrix<double> W(2, 3, 0.0); // all entries initialized to 0.0.
+//
+//    /// set its first row by a 3D vector (1.1, 2.2, 3.3)
+//    W.set_row({ 1.1, 2.2, 3.3 }, 0);   // here "{ 1.1, 2.2, 3.3 }" is of type 'std::vector<double>'
 
     /// get the last column of a matrix
-    std::vector<double> last_column = W.get_column(W.cols() - 1);
+//    std::vector<double> last_column = W.get_column(W.cols() - 1);
 
     // TODO: delete all above demo code in the final submission
 
@@ -181,6 +181,26 @@ bool Triangulation::triangulation(
     if(points_0.size() <8 || points_1.size()<8 || points_0.size() != points_1.size() ) return false;
     // TODO: Estimate relative pose of two views. This can be subdivided into
     //      - estimate the fundamental matrix F;
+    //comput W matrix
+    // w has a size of Nx9; N = number of points
+    int no_pt = points_0.size();
+    Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
+    // iterate through the vector of points and craete rows of W on the go
+
+    for(int i =0 ; i<no_pt; i++)
+    {
+        std::vector<double> row_to_set = {(points_0[i].x * points_1[i].x), (points_0[i].y * points_1[i].x), (points_1[i].x ),
+                                          (points_0[i].x * points_1[i].y), (points_0[i].y * points_1[i].y), (points_1[i].y ),
+                                           points_0[i].x,                    points_0[i].y,                  1.0
+                                         } ;
+
+        W.set_row(row_to_set, i);
+    }
+
+
+    // estimate F
+
+
     //      - compute the essential matrix E;
     //      - recover rotation R and t.
 
