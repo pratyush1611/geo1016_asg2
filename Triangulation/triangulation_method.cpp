@@ -166,71 +166,6 @@ bool Triangulation::triangulation(
     /// dimensions and their sizes can be specified at run-time (i.e., when executing your program).
     /// Below are a few examples showing some of these data structures and related APIs.
 
-    /// ----------- fixed-size matrices
-    /*
-    /// define a 3 by 4 matrix M (you can also define 3 by 4 matrix similarly)
-    mat34 M(1.0f);  /// entries on the diagonal are initialized to be 1 and others to be 0.
-
-    /// set the first row of M
-    M.set_row(0, vec4(1,1,1,1));    /// vec4 is a 4D vector.
-
-    /// set the second column of M
-    M.set_col(1, vec4(2,2,2,2));
-
-    /// get the 3 rows of M
-    vec4 M1 = M.row(0);
-    vec4 M2 = M.row(1);
-    vec4 M3 = M.row(2);
-
-    /// ----------- fixed-size vectors
-
-    /// how to quickly initialize a std::vector
-    std::vector<double> rows = {0, 1, 2, 3,
-                                4, 5, 6, 7,
-                                8, 9, 10, 11};
-    /// get the '2'-th row of M
-    const vec4 b = M.row(2);    // it assigns the requested row to a new vector b
-
-    /// get the '1'-th column of M
-    const vec3 c = M.col(1);    // it assigns the requested column to a new vector c
-
-    /// modify the element value at row 2 and column 1 (Note the 0-based indices)
-    M(2, 1) = b.x;
-
-    /// apply transformation M on a 3D point p (p is a 3D vector)
-    vec3 p(222, 444, 333);
-    vec3 proj = M * vec4(p, 1.0f);  // use the homogenous coordinates. result is a 3D vector
-
-    /// the length of a vector
-    float len = p.length();
-    /// the squared length of a vector
-    float sqr_len = p.length2();
-
-    /// the dot product of two vectors
-    float dot_prod = dot(p, proj);
-
-    /// the cross product of two vectors
-    vec3 cross_prod = cross(p, proj);
-
-    /// normalize this vector
-    cross_prod.normalize();
-
-    /// a 3 by 3 matrix (all entries are intentionally NOT initialized for efficiency reasons)
-    mat3 F;
-    /// ... here you compute or initialize F.
-    /// compute the inverse of K
-    mat3 invF = inverse(F);
-
-    /// ----------- dynamic-size matrices
-
-    /// define a non-fixed size matrix
-    Matrix<double> W(2, 3, 0.0); // all entries initialized to 0.0.
-
-    /// set its first row by a 3D vector (1.1, 2.2, 3.3)
-    W.set_row({ 1.1, 2.2, 3.3 }, 0);   // here "{ 1.1, 2.2, 3.3 }" is of type 'std::vector<double>'
-    */
-    // get the last column of a matrix
-//    std::vector<double> last_column = W.get_column(W.cols() - 1);
 
     // TODO: delete all above demo code in the final submission
 
@@ -259,14 +194,25 @@ bool Triangulation::triangulation(
     std::cout<<"\nT is \n"<<T<<'\n';
     std::cout<<"\nT' is \n"<<T_prime<<'\n';
 
+/*
+    std::cout<<T+ Matrix<double> (3,3,2.2);
+    std::cout<<T* Matrix<double> (3,3,2.2);
+    Matrix<double> Z(3,1,0.0);
+    Z.set_column( {10,10,10},0);
+    std::cout<<Z<<'\n'<< points_1[0].data();
+    std::cout<<T* Z;
+  */
     //tranform coordinates
     std::vector<vec3> q, q_prime;
     for(auto &i: points_0)
     {
-        Matrix<float> i_mat(3,1, i.data());
-//        auto temp = T * i_mat;
-//        q.push_back( temp);
-        std::cout<<i_mat;
+        Matrix<double> i_mat(3,1, 0.0);
+
+        i_mat.set_column( {i[0],i[1],i[2]} , 0);
+//        std::cout<<T * i_mat;
+        auto temp_ = T * i_mat
+        q.push_back({temp_[0][0] , temp_[1][0], temp_[2][0]}  );
+//        std::cout<<i_mat;
     }
 //    for(auto &i: points_1) q_prime.push_back(T_prime * i);
     std::cout<<"q is \n"<<q;
@@ -316,3 +262,69 @@ bool Triangulation::triangulation(
 //    return points_3d.size() > 0;
     return true;
 }
+
+/// ----------- fixed-size matrices
+/*
+/// define a 3 by 4 matrix M (you can also define 3 by 4 matrix similarly)
+mat34 M(1.0f);  /// entries on the diagonal are initialized to be 1 and others to be 0.
+
+/// set the first row of M
+M.set_row(0, vec4(1,1,1,1));    /// vec4 is a 4D vector.
+
+/// set the second column of M
+M.set_col(1, vec4(2,2,2,2));
+
+/// get the 3 rows of M
+vec4 M1 = M.row(0);
+vec4 M2 = M.row(1);
+vec4 M3 = M.row(2);
+
+/// ----------- fixed-size vectors
+
+/// how to quickly initialize a std::vector
+std::vector<double> rows = {0, 1, 2, 3,
+                            4, 5, 6, 7,
+                            8, 9, 10, 11};
+/// get the '2'-th row of M
+const vec4 b = M.row(2);    // it assigns the requested row to a new vector b
+
+/// get the '1'-th column of M
+const vec3 c = M.col(1);    // it assigns the requested column to a new vector c
+
+/// modify the element value at row 2 and column 1 (Note the 0-based indices)
+M(2, 1) = b.x;
+
+/// apply transformation M on a 3D point p (p is a 3D vector)
+vec3 p(222, 444, 333);
+vec3 proj = M * vec4(p, 1.0f);  // use the homogenous coordinates. result is a 3D vector
+
+/// the length of a vector
+float len = p.length();
+/// the squared length of a vector
+float sqr_len = p.length2();
+
+/// the dot product of two vectors
+float dot_prod = dot(p, proj);
+
+/// the cross product of two vectors
+vec3 cross_prod = cross(p, proj);
+
+/// normalize this vector
+cross_prod.normalize();
+
+/// a 3 by 3 matrix (all entries are intentionally NOT initialized for efficiency reasons)
+mat3 F;
+/// ... here you compute or initialize F.
+/// compute the inverse of K
+mat3 invF = inverse(F);
+
+/// ----------- dynamic-size matrices
+
+/// define a non-fixed size matrix
+Matrix<double> W(2, 3, 0.0); // all entries initialized to 0.0.
+
+/// set its first row by a 3D vector (1.1, 2.2, 3.3)
+W.set_row({ 1.1, 2.2, 3.3 }, 0);   // here "{ 1.1, 2.2, 3.3 }" is of type 'std::vector<double>'
+*/
+// get the last column of a matrix
+//    std::vector<double> last_column = W.get_column(W.cols() - 1);
