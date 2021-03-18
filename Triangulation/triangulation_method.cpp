@@ -174,48 +174,34 @@ bool Triangulation::triangulation(
         q_prime.push_back(q_vec_prime);
     }
 
-/*
-    //we find F_q
-    for(int i =0 ; i<no_pt; i++)
-    {
-        std::vector<double> row_to_set = {(points_0[i].x * points_1[i].x), (points_0[i].y * points_1[i].x), (points_1[i].x ),
-                                          (points_0[i].x * points_1[i].y), (points_0[i].y * points_1[i].y), (points_1[i].y ),
-                                           points_0[i].x,                    points_0[i].y,                  1.0
-                                         } ;
-
-        W.set_row(row_to_set, i);
-    }
-*/
     //comput W matrix
     // w has a size of Nx9; N = number of points
     int no_pt = points_0.size();
     Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
     // iterate through the vector of points and craete rows of W on the go
-
     for(int i =0 ; i<no_pt; i++)
     {
         std::vector<double> row_to_set = {(q[i].x * q_prime[i].x), (q[i].y * q_prime[i].x), (q_prime[i].x ),
                                           (q[i].x * q_prime[i].y), (q[i].y * q_prime[i].y), (q_prime[i].y ),
                                            q[i].x,                    q[i].y,                  1.0
         } ;
-
         W.set_row(row_to_set, i);
     }
 
 // find F_q wrt new coordinates
-    // estimate F
     // F is estimated as last column of Vt in SVD of W
     //SVD decomposition of the above W-matrix
     Matrix<double> U(no_pt, no_pt, 0.0);
     Matrix<double> S(no_pt, 9, 0.0);
     Matrix<double> Vt(9, 9, 0.0);
     svd_decompose(W, U, S, Vt);
+    //estimate F as last col of Vt
     std::vector<double> f = Vt.get_column(Vt.cols() - 1);
     mat3 F_q_unrank;
 
     vec3 r1 (f[0],f[1],f[2]);
     vec3 r2 (f[3],f[4],f[5]);
-    vec3 r3 (f[6],f[7],f[8]);
+    vec3 r3 (f[6],f[7],1.0); //last value set to 1.0 because so is asked in assignment
 
     F_q_unrank.set_row(0, r1);
     F_q_unrank.set_row(1, r2);
