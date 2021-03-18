@@ -211,21 +211,50 @@ bool Triangulation::triangulation(
     Matrix<double> Vt(9, 9, 0.0);
     svd_decompose(W, U, S, Vt);
     std::vector<double> f = Vt.get_column(Vt.cols() - 1);
-    mat3 F_q;
+    mat3 F_q_unrank;
+
     vec3 r1 (f[0],f[1],f[2]);
     vec3 r2 (f[3],f[4],f[5]);
     vec3 r3 (f[6],f[7],f[8]);
 
-    F_q.set_row(0, r1);
-    F_q.set_row(1, r2);
-    F_q.set_row(2, r3);
+    F_q_unrank.set_row(0, r1);
+    F_q_unrank.set_row(1, r2);
+    F_q_unrank.set_row(2, r3);
 
-    std::cout<< F_q <<'\n';
+    Matrix<double> Ua (3,3,0.0);
+    Matrix<double> Sa (3,3,0.0);
+    Matrix<double> Va_T (3,3,0.0);
+    Matrix<double> new_Sa (3,3,0.0);
+    Matrix<double> F_q_unrank_mx(3,3,0.0) ;
+
+    F_q_unrank_mx = to_Matrix(F_q_unrank);
+    svd_decompose(F_q_unrank_mx, Ua, Sa, Va_T);
+
+    std::cout<<"Sa \n"<< F_q_unrank_mx <<'\n';
+
+
+    std::vector<double> r1_ { Sa[0][0], 0.0 ,0.0 };
+    std::vector<double> r2_ { 0.0, Sa[1][1] ,0.0 };
+    std::vector<double> r3_ { 0.0, 0.0 ,0.0 };
+
+    new_Sa = Sa ;
+
+
+    new_Sa.set_row(r1_, 0);
+    new_Sa.set_row(r2_, 1);
+    new_Sa.set_row(r3_, 2);
+
+    std::cout<< "old_S is  \n"<<Sa<<'\n';
+    std::cout<< "new_Sa is \n"<<new_Sa<<'\n';
+
+
+
+    mat3 F_q = to_mat3(Ua * (new_Sa) * Va_T.transpose() );
+
+    std::cout<< "Fq is \n"<<F_q <<'\n';
     //find F from T T' and Fq : denormalize
     mat3 F = to_mat3(to_Matrix(T_prime).transpose()) * F_q * T;
     std::cout<<"F is \n"<< F <<'\n';
-
-    //
 
     //      - compute the essential matrix E;
 
