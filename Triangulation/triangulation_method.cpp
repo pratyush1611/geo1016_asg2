@@ -54,7 +54,7 @@ Matrix<double> to_Matrix(const mat &M) {
     return result;
 }
 
-Matrix<double> norm_transform(std::vector<vec3> pts)
+mat3 norm_transform(std::vector<vec3> pts)
 {
     Matrix<double> T (3,3, 0.0);
     //1st calculate the centroid
@@ -89,35 +89,9 @@ Matrix<double> norm_transform(std::vector<vec3> pts)
     T.set_row({0.0, mean_dist, 0.0},1);
     T.set_row({-1.0*centrd.x, -1.0*centrd.y, 1.0},2);
 
-    return T.transpose();
+    return to_mat3( T.transpose() );
 }
-/*
-std::vector<vec3> centroidinator(std::vector<vec3> points_vec, std::vector<vec3> &translated)
-{
-    //1st calculate the centroid
-    vec3 centrd;
-    double avgx,avgy = 0.0, 0.0 ;
-    for(auto & i : points_vec)
-    {
-        avgx += i.x;
-        avgy += i.y;
-    }
 
-    avgx/=points_vec.size() ;
-    avgy/=points_vec.size() ;
-
-    centrd= {avgx, avgy, 1};
-
-    //run a translation
-    for(auto & j : points_vec)
-    {
-        vec3 temp = j - centrd;
-        translated.push_back(temp);
-    }
-
-    return translated;
-}
-*/
 /**
  * TODO: Finish this function for reconstructing 3D geometry from corresponding image points.
  * @return True on success, otherwise false. On success, the reconstructed 3D points must be written to 'points_3d'.
@@ -174,50 +148,34 @@ bool Triangulation::triangulation(
 
     // TODO: check if the input is valid (always good because you never known how others will call your function).
     std::cout<<"checking print statement\n";
-//    if(cx != cy) return false;
-//    if(fx != fy) return false;
     if(points_0.size() <8 || points_1.size()<8 || points_0.size() != points_1.size() ) return false;
     std::cout<<"if doesnt return \n";
 
     // TODO: Estimate relative pose of two views. This can be subdivided into
     //      - estimate the fundamental matrix F;
-    //comput W matrix
-    // w has a size of Nx9; N = number of points
-    int no_pt = points_0.size();
-    Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
-    // iterate through the vector of points and craete rows of W on the go
 
     // to normalize get T and T'
-    Matrix<double> T = norm_transform(points_0);
-    Matrix<double> T_prime = norm_transform(points_1);
+    mat3 T = norm_transform(points_0);
+    mat3 T_prime = norm_transform(points_1);
 
-    std::cout<<"\nT is \n"<<T<<'\n';
+    std::cout<<"\nT  is \n"<<T<<'\n';
     std::cout<<"\nT' is \n"<<T_prime<<'\n';
 
-/*
-    std::cout<<T+ Matrix<double> (3,3,2.2);
-    std::cout<<T* Matrix<double> (3,3,2.2);
-    Matrix<double> Z(3,1,0.0);
-    Z.set_column( {10,10,10},0);
-    std::cout<<Z<<'\n'<< points_1[0].data();
-    std::cout<<T* Z;
-  */
     //tranform coordinates
     std::vector<vec3> q, q_prime;
     for(auto &i: points_0)
     {
-        Matrix<double> i_mat(3,1, 0.0);
-
-        i_mat.set_column( {i[0],i[1],i[2]} , 0);
-//        std::cout<<T * i_mat;
-        auto temp_ = T * i_mat
-        q.push_back({temp_[0][0] , temp_[1][0], temp_[2][0]}  );
-//        std::cout<<i_mat;
+        vec3 q_vect = T * i ;
+        q.push_back( q_vect );
     }
-//    for(auto &i: points_1) q_prime.push_back(T_prime * i);
-    std::cout<<"q is \n"<<q;
+    for(auto &i: points_1)
+    {
+        vec3 q_vec_prime =T_prime * i ;
+        q_prime.push_back(q_vec_prime);
+    }
 
-    //we find Fq
+/*
+    //we find F_q
     for(int i =0 ; i<no_pt; i++)
     {
         std::vector<double> row_to_set = {(points_0[i].x * points_1[i].x), (points_0[i].y * points_1[i].x), (points_1[i].x ),
@@ -227,9 +185,24 @@ bool Triangulation::triangulation(
 
         W.set_row(row_to_set, i);
     }
+*/
+    //comput W matrix
+    // w has a size of Nx9; N = number of points
+    int no_pt = points_0.size();
+    Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
+    // iterate through the vector of points and craete rows of W on the go
 
-    //find F from T T' and Fq
+    for(int i =0 ; i<no_pt; i++)
+    {
+        std::vector<double> row_to_set = {(q[i].x * q_prime[i].x), (q[i].y * q_prime[i].x), (q_prime[i].x ),
+                                          (q[i].x * q_prime[i].y), (q[i].y * q_prime[i].y), (q_prime[i].y ),
+                                           q[i].x,                    q[i].y,                  1.0
+        } ;
 
+        W.set_row(row_to_set, i);
+    }
+
+// find F_q wrt new coordinates
     // estimate F
     // F is estimated as last column of Vt in SVD of W
     //SVD decomposition of the above W-matrix
@@ -237,10 +210,22 @@ bool Triangulation::triangulation(
     Matrix<double> S(no_pt, 9, 0.0);
     Matrix<double> Vt(9, 9, 0.0);
     svd_decompose(W, U, S, Vt);
-
-    // We get m by taking the last column of V
-//    std::vector<double> f = Vt.get_column(8);//get last col
     std::vector<double> f = Vt.get_column(Vt.cols() - 1);
+    mat3 F_q;
+    vec3 r1 (f[0],f[1],f[2]);
+    vec3 r2 (f[3],f[4],f[5]);
+    vec3 r3 (f[6],f[7],f[8]);
+
+    F_q.set_row(0, r1);
+    F_q.set_row(1, r2);
+    F_q.set_row(2, r3);
+
+    std::cout<< F_q <<'\n';
+    //find F from T T' and Fq : denormalize
+    mat3 F = to_mat3(to_Matrix(T_prime).transpose()) * F_q * T;
+    std::cout<<"F is \n"<< F <<'\n';
+
+    //
 
     //      - compute the essential matrix E;
 
