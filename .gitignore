@@ -24,6 +24,7 @@ ipch
 *sdf
 
 # Clion folder
-.idea
-cmake-build-debug
-cmake-build-release
+/.idea/
+
+/cmake-build-release/
+/cmake-build-debug/
