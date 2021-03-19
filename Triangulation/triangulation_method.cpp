@@ -89,17 +89,13 @@ mat3 norm_transform(std::vector<vec3> pts)
     T.set_row({0.0, mean_dist, 0.0},1);
     T.set_row({-1.0*centrd.x, -1.0*centrd.y, 1.0},2);
 
-    return to_mat3( T.transpose() );
+    return to_mat3( T.transpose() ); //returns matrix for scaling and translating
 }
 
-void normaliser()
-{
-//    continue;
-}
 
 void Essentialator(float fx, float fy,     float cx, float cy,
                    const std::vector<vec3> &points_0, const std::vector<vec3> &points_1,
-                   Matrix<double> &E)
+                   Matrix<double> &E, Matrix<double> &K)
 {
     // to normalize get T and T'
     mat3 T = norm_transform(points_0);
@@ -143,18 +139,27 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     Matrix<double> Vt(9, 9, 0.0);
     svd_decompose(W, U, S, Vt);
     //estimate F as last col of Vt
-    std::vector<double> f = Vt.get_column(Vt.cols() - 1);
+//    std::vector<double> f = Vt.get_column(Vt.cols() - 1);
 
     // before rank 2 setting in F, with normalised coordinates
     mat3 F_q_unrank;
-
+    int ind=0;
+    for(int i=0; i<3;i++)
+    {
+        for(int j=0;j<3;j++)
+        {
+            F_q_unrank(i,j) = Vt(ind,8) ;
+        }
+    }
+    /*
     vec3 r1 (f[0],f[1],f[2]);
     vec3 r2 (f[3],f[4],f[5]);
-    vec3 r3 (f[6],f[7],1.0); //last value set to 1.0 because so is asked in assignment
+    vec3 r3 (f[6],f[7],f[8]); //last value set to 1.0 because so is asked in assignment
 
     F_q_unrank.set_row(0, r1);
     F_q_unrank.set_row(1, r2);
     F_q_unrank.set_row(2, r3);
+    */
 
     Matrix<double> Ua (3,3,0.0);
     Matrix<double> Sa (3,3,0.0);
@@ -166,7 +171,9 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     svd_decompose(F_q_unrank_mx, Ua, Sa, Va_T);
 
     std::cout<<"Sa \n"<< F_q_unrank_mx <<'\n';
-
+    new_Sa=Sa;
+    new_Sa(2,2)=0;
+    /*
     std::vector<double> r1_ { Sa[0][0], 0.0 ,0.0 };
     std::vector<double> r2_ { 0.0, Sa[1][1] ,0.0 };
     std::vector<double> r3_ { 0.0, 0.0 ,0.0 };
@@ -177,6 +184,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     new_Sa.set_row(r1_, 0);
     new_Sa.set_row(r2_, 1);
     new_Sa.set_row(r3_, 2);
+    */
 
     mat3 F_q = to_mat3(Ua * (new_Sa) * Va_T.transpose() );
     std::cout<< "Fq is \n"<<F_q <<'\n';
@@ -185,21 +193,46 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     mat3 F = to_mat3(to_Matrix(T_prime).transpose()) * F_q * T;
     std::cout<<"F is \n"<< F <<'\n';
 
+    //rescale wrt F(2,2) aka set last element as 1
+    for(int i=0; i<3; i++)
+    {
+        for(int j=0; j<3; j++)
+        {
+            F(i,j) = F(i,j) / F(2,2);
+        }
+    }
+
     //      - compute the essential matrix E;
     // assuming that we can make the intrinsic matrix from the cx cy fx fy
     //make vectors k and k'
-    Matrix<double> K (3,3, std::vector<double> {fx,0.0,cx,
-                                                0.0,fy,cy,
-                                                0.0,0.0,1.0});
+    K = Matrix<double> (3,3,
+                        std::vector<double> {fx,0.0,cx,
+                                                  0.0,fy,cy,
+                                                  0.0,0.0,1.0});
     E = K.transpose() * to_Matrix(F) * K;
     std::cout<<"E\n"<<E<<std::endl;
 
 }
 
-//tiangulator()
-//{
-//
-//}
+void tiangulator( Matrix<double> R, std::vector<double> T, Matrix<double> K )
+{
+    //vec3 p, vec3 p_prime ,
+    /* create M matrix for given R T and K in the equation AP=0
+     * then runs SVD to compute for P for a given point
+     */
+    //create M
+    // M = K [R | T]
+    Matrix<double> RT (3,4,  0.0);
+    RT.set_column( R.get_column(0) , 0);
+    RT.set_column( R.get_column(1) , 1);
+    RT.set_column( R.get_column(2) , 2);
+    RT.set_column( T , 3);
+
+    std::cout<<"\nR is " <<R<<'\n';
+    std::cout<<"\nT is " <<T<<'\n';
+    std::cout<<"\nRT is " <<RT<<'\n';
+//    std::cout<<"K is \n"<<K<<'\n';
+}
 
 
 
@@ -230,8 +263,8 @@ bool Triangulation::triangulation(
     // TODO: Estimate relative pose of two views. This can be subdivided into
     //      - estimate the fundamental matrix F;
     //NORMalize, SVD get f, SVD rank 2 check, DEnormalize
-    Matrix<double> E;
-    Essentialator(fx, fy, cx, cy, points_0, points_1, E);
+    Matrix<double> E, K;
+    Essentialator(fx, fy, cx, cy, points_0, points_1, E, K);
 
     //      - recover rotation R and t.
     //set values for W and Z
@@ -250,8 +283,12 @@ bool Triangulation::triangulation(
 
     std::vector<double> t_1 = Ue.get_column(Ue.cols() - 1);
     std::vector<double> t_2 = -1.0*Ue.get_column(Ue.cols() - 1);
+
     Matrix<double> R1 = Ue * We * Vt_e.transpose();
     Matrix<double> R2 = Ue * We.transpose() * Vt_e.transpose();
+
+    R1 = determinant(R1)*R1;
+    R2 = determinant(R2)*R2;
 
     std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
     std::cout<<"R1\n"<<R1<<"\nR2\n"<<R2<<"\ndetR1\n"<<determinant(R1)<<"\ndetR2\n"<<determinant(R2)<<'\n';
@@ -268,9 +305,10 @@ bool Triangulation::triangulation(
     //choose majority with +ve side as correct orientation
     for(int i=0; i< 30; i++)
     {
-
+//        points_0[i];
+        tiangulator(  R1, t_1,  K );
     }
-
+    std::cout<<"points "<<points_0[1];
     // TODO: Don't forget to
     //          - write your recovered 3D points into 'points_3d' (the viewer can visualize the 3D points for you);
     //          - write the recovered relative pose into R and t (the view will be updated as seen from the 2nd camera,
