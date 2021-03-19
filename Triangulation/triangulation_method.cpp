@@ -241,13 +241,38 @@ bool Triangulation::triangulation(
     //      - compute the essential matrix E;
     // assuming that we can make the intrinsic matrix from the cx cy fx fy
     //make vectors k and k'
-    Matrix<double> K (3,3, std::vector<double> {fx,0.0,cx,0.0,fy,cy,0.0,0.0,1.0});
+    Matrix<double> K (3,3, std::vector<double> {fx,0.0,cx,
+                                                                0.0,fy,cy,
+                                                                0.0,0.0,1.0});
     Matrix<double> E = K.transpose() * to_Matrix(F) * K;
     std::cout<<"E\n"<<E<<std::endl;
-    //      - recover rotation R and t.
-//    mat3 W (0.0);
-//    mat3 Z ()
 
+    //      - recover rotation R and t.
+    //set values for W and Z
+    Matrix<double> We ( 3, 3, std::vector<double>{0.0, -1.0, 1.0,
+                                                0.0, 0.0, 0.0,
+                                                0.0, 0.0, 1.0});
+    Matrix<double> Z ( 3, 3, std::vector<double>{0.0, 1.0, 0.0,
+                                                 -1.0, 0.0, 0.0,
+                                                 0.0, 0.0, 0.0});
+    //run SVD on E
+    Matrix<double> Ue(3,3, 0.0);
+    Matrix<double> Se(3,3, 0.0);
+    Matrix<double> Vt_e(3,3, 0.0);
+
+    svd_decompose(E, Ue, Se, Vt_e);
+
+    std::vector<double> t_1 = Ue.get_column(Ue.cols() - 1);
+    std::vector<double> t_2 = -1.0*Ue.get_column(Ue.cols() - 1);
+    Matrix<double> R1 = Ue * We * Vt_e.transpose();
+    Matrix<double> R2 = Ue * We.transpose() * Vt_e.transpose();
+
+    std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
+    std::cout<<"R1\n"<<R1<<"\nR2\n"<<R2<<"\ndetR1\n"<<determinant(R1)<<"\ndetR2\n"<<determinant(R2)<<'\n';
+
+
+    //print
+//    std::cout<<"Ue, Se, Vte are \n"<<Ue<<'\n'<<Se<<'\n'<<Vt_e<<'\n';
     // TODO: Reconstruct 3D points. The main task is
     //      - triangulate a pair of image points (i.e., compute the 3D coordinates for each corresponding point pair)
 
