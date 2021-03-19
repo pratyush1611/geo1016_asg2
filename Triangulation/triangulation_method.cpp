@@ -197,6 +197,8 @@ bool Triangulation::triangulation(
     svd_decompose(W, U, S, Vt);
     //estimate F as last col of Vt
     std::vector<double> f = Vt.get_column(Vt.cols() - 1);
+
+    // before rank 2 setting in F, with normalised coordinates
     mat3 F_q_unrank;
 
     vec3 r1 (f[0],f[1],f[2]);
@@ -218,7 +220,6 @@ bool Triangulation::triangulation(
 
     std::cout<<"Sa \n"<< F_q_unrank_mx <<'\n';
 
-
     std::vector<double> r1_ { Sa[0][0], 0.0 ,0.0 };
     std::vector<double> r2_ { 0.0, Sa[1][1] ,0.0 };
     std::vector<double> r3_ { 0.0, 0.0 ,0.0 };
@@ -230,21 +231,22 @@ bool Triangulation::triangulation(
     new_Sa.set_row(r2_, 1);
     new_Sa.set_row(r3_, 2);
 
-    std::cout<< "old_S is  \n"<<Sa<<'\n';
-    std::cout<< "new_Sa is \n"<<new_Sa<<'\n';
-
-
-
     mat3 F_q = to_mat3(Ua * (new_Sa) * Va_T.transpose() );
-
     std::cout<< "Fq is \n"<<F_q <<'\n';
+
     //find F from T T' and Fq : denormalize
     mat3 F = to_mat3(to_Matrix(T_prime).transpose()) * F_q * T;
     std::cout<<"F is \n"<< F <<'\n';
 
     //      - compute the essential matrix E;
-
+    // assuming that we can make the intrinsic matrix from the cx cy fx fy
+    //make vectors k and k'
+    Matrix<double> K (3,3, std::vector<double> {fx,0.0,cx,0.0,fy,cy,0.0,0.0,1.0});
+    Matrix<double> E = K.transpose() * to_Matrix(F) * K;
+    std::cout<<"E\n"<<E<<std::endl;
     //      - recover rotation R and t.
+//    mat3 W (0.0);
+//    mat3 Z ()
 
     // TODO: Reconstruct 3D points. The main task is
     //      - triangulate a pair of image points (i.e., compute the 3D coordinates for each corresponding point pair)
