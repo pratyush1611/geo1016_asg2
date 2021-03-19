@@ -54,9 +54,9 @@ Matrix<double> to_Matrix(const mat &M) {
     return result;
 }
 
-mat3 norm_transform(std::vector<vec3> pts)
+void norm_transform(mat3 &t , std::vector<vec3> &pts)
 {
-    Matrix<double> T (3,3, 0.0);
+//    Matrix<double> T (3,3, 0.0);
     //1st calculate the centroid
 
     float avgx = 0.0;
@@ -71,25 +71,44 @@ mat3 norm_transform(std::vector<vec3> pts)
     avgy/=pts.size() ;
 
     vec3 centrd {avgx, avgy, 1.0};
+//    make translation matrix
+    mat3 T( 1.0);
+    T.set_col(2, vec3(-avgx, -avgy, 1.0));
 
     //translate the coordinates
     //get mean distances
-//    std::vector<vec3> translated;
+
     double mean_dist=0.0;
     for(auto & j : pts)
     {
-        vec3 temp = j - centrd;
-        mean_dist += temp.length();
-//        translated.push_back(temp);
+//        vec3 temp = j - centrd;
+//        mean_dist += temp.length();
+        mean_dist += j.length() ;
     }
     mean_dist/=pts.size();
-    mean_dist = sqrt(2.0)/mean_dist;
 
+    float s = sqrt(2.0)/mean_dist;
+    mat3 S = mat3::scale (s, s,1.0);
+/*
     T.set_row({mean_dist, 0.0, 0.0},0);
     T.set_row({0.0, mean_dist, 0.0},1);
     T.set_row({-1.0*centrd.x, -1.0*centrd.y, 1.0},2);
 
-    return to_mat3( T.transpose() ); //returns matrix for scaling and translating
+    t= to_mat3( T.transpose() ); //returns matrix for scaling and translating
+
+    T.set_row({mean_dist, mean_dist, 1.0},0);
+    T.set_row({mean_dist, mean_dist, 1.0},1);
+    T.set_row({-1.0*mean_dist*centrd.x, -1.0*mean_dist*centrd.y, 1.0 },2);
+
+
+    t= to_mat3( T.transpose() ); //returns matrix for scaling and translating
+*/
+    t = S*T;
+
+    for(auto &i: pts)
+    {
+        i = t * i;
+    }
 }
 
 
@@ -97,13 +116,18 @@ void Essentialator(float fx, float fy,     float cx, float cy,
                    const std::vector<vec3> &points_0, const std::vector<vec3> &points_1,
                    Matrix<double> &E, Matrix<double> &K)
 {
+    //make copies of points
+    std::vector<vec3> q=points_0;
+    std::vector<vec3> q_prime = points_1;
     // to normalize get T and T'
-    mat3 T = norm_transform(points_0);
-    mat3 T_prime = norm_transform(points_1);
+    mat3 T, T_prime;
+    norm_transform(T, q);
+    norm_transform(T_prime, q_prime);
 
 //    std::cout<<"\nT  is \n"<<T<<'\n';
 //    std::cout<<"\nT' is \n"<<T_prime<<'\n';
 
+    /*
     //tranform coordinates
     std::vector<vec3> q, q_prime;
     for(auto &i: points_0)
@@ -116,7 +140,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
         vec3 q_vec_prime =T_prime * i ;
         q_prime.push_back(q_vec_prime);
     }
-
+    */
     //comput W matrix
     // w has a size of Nx9; N = number of points
     int no_pt = points_0.size();
@@ -140,7 +164,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     svd_decompose(W, U, S, Vt);
     //estimate F as last col of Vt
 //    std::vector<double> f = Vt.get_column(Vt.cols() - 1);
-
+    std::cout<<"USV" << W<<'\n'<<S<<'\n'<<Vt<<'\n';
     // before rank 2 setting in F, with normalised coordinates
     mat3 F_q_unrank;
     int ind=0;
@@ -149,7 +173,9 @@ void Essentialator(float fx, float fy,     float cx, float cy,
         for(int j=0;j<3;j++)
         {
             F_q_unrank(i,j) = Vt(ind,8) ;
+            ind++;
         }
+
     }
     /*
     vec3 r1 (f[0],f[1],f[2]);
@@ -170,29 +196,15 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     F_q_unrank_mx = to_Matrix(F_q_unrank);
     svd_decompose(F_q_unrank_mx, Ua, Sa, Va_T);
 
-    std::cout<<"Sa \n"<< F_q_unrank_mx <<'\n';
+    std::cout<<"F_q unrank check \n"<< F_q_unrank_mx <<'\n';
     new_Sa=Sa;
     new_Sa(2,2)=0;
-    /*
-    std::vector<double> r1_ { Sa[0][0], 0.0 ,0.0 };
-    std::vector<double> r2_ { 0.0, Sa[1][1] ,0.0 };
-    std::vector<double> r3_ { 0.0, 0.0 ,0.0 };
-
-    new_Sa = Sa ;
-
-
-    new_Sa.set_row(r1_, 0);
-    new_Sa.set_row(r2_, 1);
-    new_Sa.set_row(r3_, 2);
-    */
 
     mat3 F_q = to_mat3(Ua * (new_Sa) * Va_T.transpose() );
-    std::cout<< "Fq is \n"<<F_q <<'\n';
+    std::cout<< "Fq rank check is \n"<<F_q <<'\n';
 
     //find F from T T' and Fq : denormalize
     mat3 F = to_mat3(to_Matrix(T_prime).transpose()) * F_q * T;
-    std::cout<<"F is \n"<< F <<'\n';
-
     //rescale wrt F(2,2) aka set last element as 1
     for(int i=0; i<3; i++)
     {
@@ -201,6 +213,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
             F(i,j) = F(i,j) / F(2,2);
         }
     }
+    std::cout<<"F after normalisation is \n"<< F <<'\n';
 
     //      - compute the essential matrix E;
     // assuming that we can make the intrinsic matrix from the cx cy fx fy
@@ -211,6 +224,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
                                                   0.0,0.0,1.0});
     E = K.transpose() * to_Matrix(F) * K;
     std::cout<<"E\n"<<E<<std::endl;
+    std::cout<<"K\n"<<K<<std::endl;
 
 }
 
@@ -228,9 +242,9 @@ void tiangulator( Matrix<double> R, std::vector<double> T, Matrix<double> K )
     RT.set_column( R.get_column(2) , 2);
     RT.set_column( T , 3);
 
-    std::cout<<"\nR is " <<R<<'\n';
-    std::cout<<"\nT is " <<T<<'\n';
-    std::cout<<"\nRT is " <<RT<<'\n';
+//    std::cout<<"\nR is " <<R<<'\n';
+//    std::cout<<"\nT is " <<T<<'\n';
+//    std::cout<<"\nRT is " <<RT<<'\n';
 //    std::cout<<"K is \n"<<K<<'\n';
 }
 
@@ -268,8 +282,8 @@ bool Triangulation::triangulation(
 
     //      - recover rotation R and t.
     //set values for W and Z
-    Matrix<double> We ( 3, 3, std::vector<double>{0.0, -1.0, 1.0,
-                                                0.0, 0.0, 0.0,
+    Matrix<double> We ( 3, 3, std::vector<double>{0.0, -1.0, 0.0,
+                                                1.0, 0.0, 0.0,
                                                 0.0, 0.0, 1.0});
     Matrix<double> Z ( 3, 3, std::vector<double>{0.0, 1.0, 0.0,
                                                  -1.0, 0.0, 0.0,
@@ -284,11 +298,11 @@ bool Triangulation::triangulation(
     std::vector<double> t_1 = Ue.get_column(Ue.cols() - 1);
     std::vector<double> t_2 = -1.0*Ue.get_column(Ue.cols() - 1);
 
-    Matrix<double> R1 = Ue * We * Vt_e.transpose();
-    Matrix<double> R2 = Ue * We.transpose() * Vt_e.transpose();
+    Matrix<double> R1 = determinant(Ue * We * Vt_e.transpose()) * Ue * We * Vt_e.transpose();
+    Matrix<double> R2 = determinant(Ue * We.transpose() * Vt_e.transpose()) * Ue * We.transpose() * Vt_e.transpose();
 
-    R1 = determinant(R1)*R1;
-    R2 = determinant(R2)*R2;
+//    R1 = determinant(R1)*R1;
+//    R2 = determinant(R2)*R2;
 
     std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
     std::cout<<"R1\n"<<R1<<"\nR2\n"<<R2<<"\ndetR1\n"<<determinant(R1)<<"\ndetR2\n"<<determinant(R2)<<'\n';
@@ -303,7 +317,7 @@ bool Triangulation::triangulation(
     //run SVD on A to find values of P
     // run on at least 30 random points
     //choose majority with +ve side as correct orientation
-    for(int i=0; i< 30; i++)
+    for(int i=0; i< 5; i++)
     {
 //        points_0[i];
         tiangulator(  R1, t_1,  K );
