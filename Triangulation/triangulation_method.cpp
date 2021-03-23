@@ -109,6 +109,7 @@ void norm_transform(mat3 &t , std::vector<vec3> &pts)
     {
         i = t * i;
     }
+
 }
 
 
@@ -164,7 +165,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     svd_decompose(W, U, S, Vt);
     //estimate F as last col of Vt
 //    std::vector<double> f = Vt.get_column(Vt.cols() - 1);
-    std::cout<<"USV" << W<<'\n'<<S<<'\n'<<Vt<<'\n';
+//    std::cout<<"USV" << W<<'\n'<<S<<'\n'<<Vt<<'\n';
     // before rank 2 setting in F, with normalised coordinates
     mat3 F_q_unrank;
     int ind=0;
@@ -213,7 +214,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
             F(i,j) = F(i,j) / F(2,2);
         }
     }
-    std::cout<<"F after normalisation is \n"<< F <<'\n';
+    std::cout<<"F after denormalisation and normalising last value to 1 is \n"<< F <<'\n';
 
     //      - compute the essential matrix E;
     // assuming that we can make the intrinsic matrix from the cx cy fx fy
@@ -224,28 +225,115 @@ void Essentialator(float fx, float fy,     float cx, float cy,
                                                   0.0,0.0,1.0});
     E = K.transpose() * to_Matrix(F) * K;
     std::cout<<"E\n"<<E<<std::endl;
-    std::cout<<"K\n"<<K<<std::endl;
+//    std::cout<<"K\n"<<K<<std::endl;
 
 }
 
-void tiangulator( Matrix<double> R, std::vector<double> T, Matrix<double> K )
+Matrix<double> get_KRT( Matrix<double> R, std::vector<double> T, Matrix<double> K )
 {
-    //vec3 p, vec3 p_prime ,
-    /* create M matrix for given R T and K in the equation AP=0
-     * then runs SVD to compute for P for a given point
-     */
-    //create M
+    // create M matrix for given R T and K in the equation AP=0
     // M = K [R | T]
     Matrix<double> RT (3,4,  0.0);
     RT.set_column( R.get_column(0) , 0);
     RT.set_column( R.get_column(1) , 1);
     RT.set_column( R.get_column(2) , 2);
+
     RT.set_column( T , 3);
+
+    Matrix<double> M = K* RT;
+    return M;
+}
+
+int rt_decider( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1)
+{
+    //vec3 p, vec3 p_prime ,
+    /* create M matrix for given R T and K in the equation AP=0
+     * then runs SVD to compute for P for a given point
+     */
+    // pt_0 for m2 [i|o]
+    // pt_1 for m1;
+    Matrix<double> M1 = get_KRT(R,T,K);
+    Matrix<double> M2 (3,4,0.0);
+    std::vector<double> I_row1 {0.0, 0.0, 1.0, 0.0};
+    std::vector<double> I_row2 {0.0, 0.0, 1.0, 0.0};
+    std::vector<double> I_row3 {0.0, 0.0, 1.0, 0.0};
+    M2.set_row( I_row1, 0);
+    M2.set_row( I_row2, 1);
+    M2.set_row( I_row3, 2);
+    std::cout<<"m2 set\n";
+    //randomly pick points to choose the side of the orientation
+    //for now deal with 30 at interval of 5
+
+    Matrix<double> U(3,3, 0.0);
+    Matrix<double> S(3,3, 0.0);
+    Matrix<double> Vt(3,3, 0.0);
+    int s=0;
+    for(int i=0; i <= pts_0.size(); i+=5)
+    {
+        //compute A matrix for a selected point
+        Matrix<double> A (4,4,0.0);
+        A.set_row( pts_0[i].x * M2.get_row(2) - M2.get_row(0), 0);
+        A.set_row( pts_0[i].y * M2.get_row(2) - M2.get_row(1), 1);
+        A.set_row( pts_1[i].x * M1.get_row(2) - M1.get_row(0), 2);
+        A.set_row( pts_1[i].y * M1.get_row(2) - M1.get_row(1), 3);
+
+        //sun SVD of A, to get P matrix contained in last col of V vector
+        svd_decompose(A, U, S, Vt);
+        std::vector<double> p = U.get_column(U.cols() - 1);
+//        Matrix<double> P (4,1, p);
+        //check if p.z is mositive
+        std::cout<<"wir sind hier!\n";
+        if( p[2] > 0 ) s++;
+    }
+
+    return s;
 
 //    std::cout<<"\nR is " <<R<<'\n';
 //    std::cout<<"\nT is " <<T<<'\n';
 //    std::cout<<"\nRT is " <<RT<<'\n';
 //    std::cout<<"K is \n"<<K<<'\n';
+}
+
+void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1, std::vector<vec3> & pt3d)
+{
+    //vec3 p, vec3 p_prime ,
+    /* create M matrix for given R T and K in the equation AP=0
+     * then runs SVD to compute for P for a given point
+     */
+    // pt_0 for m2 [i|o]
+    // pt_1 for m1;
+    Matrix<double> M1 = get_KRT(R,T,K);
+    Matrix<double> M2 (3,4,0.0);
+
+    M2.set_column( std::vector<double> {1.0, 0.0, 0.0} , 0);
+    M2.set_column( std::vector<double> {0.0, 1.0, 0.0} , 1);
+    M2.set_column( std::vector<double> {0.0, 0.0, 1.0} , 2);
+
+    //randomly pick points to choose the side of the orientation
+    //for now deal with 30 at interval of 5
+
+    Matrix<double> U(4,4, 0.0);
+    Matrix<double> S(4,4, 0.0);
+    Matrix<double> Vt(4,4, 0.0);
+
+    int s=0;
+
+    for(int i=0; i<pts_0.size(); i++)
+    {
+        Matrix<double> A (4,4,0.0);
+        A.set_row( pts_0[i].y * M2.get_row(2) - M2.get_row(1), 1);
+        A.set_row( pts_1[i].x * M1.get_row(2) - M1.get_row(0), 2);
+
+        A.set_row( pts_0[i].x * M2.get_row(2) - M2.get_row(0), 0);
+        A.set_row( pts_1[i].y * M1.get_row(2) - M1.get_row(1), 3);
+
+        // sun SVD of A, to get P matrix contained in last col of V vector
+        svd_decompose(A, U, S, Vt);
+        std::vector<double> p = Vt.get_column(Vt.cols() - 1);
+        vec3 temporary (p[0], p[1], p[2]) ;
+        pt3d.push_back( temporary );
+    }
+
 }
 
 
@@ -297,14 +385,13 @@ bool Triangulation::triangulation(
 
     std::vector<double> t_1 = Ue.get_column(Ue.cols() - 1);
     std::vector<double> t_2 = -1.0*Ue.get_column(Ue.cols() - 1);
+    std::vector< std::vector<double> > t_types {t_1, t_2};
 
     Matrix<double> R1 = determinant(Ue * We * Vt_e.transpose()) * Ue * We * Vt_e.transpose();
     Matrix<double> R2 = determinant(Ue * We.transpose() * Vt_e.transpose()) * Ue * We.transpose() * Vt_e.transpose();
+    std::vector< Matrix<double> > R_types {R1, R2 };
 
-//    R1 = determinant(R1)*R1;
-//    R2 = determinant(R2)*R2;
-
-    std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
+//    std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
     std::cout<<"R1\n"<<R1<<"\nR2\n"<<R2<<"\ndetR1\n"<<determinant(R1)<<"\ndetR2\n"<<determinant(R2)<<'\n';
 
 
@@ -313,16 +400,41 @@ bool Triangulation::triangulation(
     // TODO: Reconstruct 3D points. The main task is
     //      - triangulate a pair of image points (i.e., compute the 3D coordinates for each corresponding point pair)
 
-    //do triangulation //AP = 0
-    //run SVD on A to find values of P
-    // run on at least 30 random points
-    //choose majority with +ve side as correct orientation
-    for(int i=0; i< 5; i++)
+    /* do triangulation //AP = 0
+     * run SVD on A to find values of P
+     * run on at least 30 random points  choose majority with +ve side as correct orientation
+     * check rank of positive returned for the 4 combinations
+     * once returned, check for
+     */
+//    for(int i=0; i< 30; i++)
+//    {
+////        points_0[i];
+//        tiangulator( R1, t_1, K );
+//    }
+    Matrix<double> r_store = R1;
+    std::vector<double> t_store = t_1;
+    int no_of_positive_points =0;
+    for(auto &i : t_types )
     {
-//        points_0[i];
-        tiangulator(  R1, t_1,  K );
+        for( auto &j: R_types)
+        {
+            std::cout<<"in loop again \n";
+            int ret = rt_decider(j, i, K, points_0, points_1);
+            if( no_of_positive_points < ret )
+            {
+                no_of_positive_points = ret;
+                //also store the r and t
+                t_store = i;
+                r_store = j;
+            }
+        }
     }
-    std::cout<<"points "<<points_0[1];
+
+    //final rstore and tstore should be here
+    std::cout<<"the best r and t are \n"<<r_store<<'\n'<<t_store <<'\n';
+    points_3d_gen( r_store, t_store, K , points_0, points_1 , points_3d);
+
+
     // TODO: Don't forget to
     //          - write your recovered 3D points into 'points_3d' (the viewer can visualize the 3D points for you);
     //          - write the recovered relative pose into R and t (the view will be updated as seen from the 2nd camera,
