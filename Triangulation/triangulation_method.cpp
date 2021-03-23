@@ -106,42 +106,10 @@ void Essentialator(float fx, float fy,     float cx, float cy,
                    Matrix<double> &E, Matrix<double> &K, std::vector<vec3> &q, std::vector<vec3> &q_prime)
 {
     //make copies of points
-//    std::vector<vec3> q=points_0;
-//    std::vector<vec3> q_prime = points_1;
-//    // to normalize get T and T'
+    // to normalize get T and T'
     mat3 T, T_prime;
     norm_transform(T, points_0,q);
     norm_transform(T_prime, points_1, q_prime);
-
-//    std::cout<<"\nT  is \n"<<T<<'\n';
-//    std::cout<<"\nT' is \n"<<T_prime<<'\n';
-
-    /*
-    //tranform coordinates
-    std::vector<vec3> q, q_prime;
-    for(auto &i: points_0)
-    {
-        vec3 q_vect = T * i ;
-        q.push_back( q_vect );
-    }
-    for(auto &i: points_1)
-    {
-        vec3 q_vec_prime =T_prime * i ;
-        q_prime.push_back(q_vec_prime);
-    }
-    */
-    //comput W matrix
-    // w has a size of Nx9; N = number of points
-//    int indx =0;
-//    for(auto l: q)
-//    {
-//        std::cout<<indx++<<"\t"<<l<<'\n';
-//    }
-//    int indx2=0;
-//    for(auto l: q_prime)
-//    {
-//        std::cout<<indx2++<<"\t"<<l<<'\n';
-//    }
 
     int no_pt = points_0.size();
     Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
@@ -155,7 +123,7 @@ void Essentialator(float fx, float fy,     float cx, float cy,
         W.set_row(row_to_set, i);
     }
 
-// find F_q wrt new coordinates
+    // find F_q wrt new coordinates
     // F is estimated as last column of Vt in SVD of W
     //SVD decomposition of the above W-matrix
     Matrix<double> U(no_pt, no_pt, 0.0);
@@ -163,8 +131,6 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     Matrix<double> V(9, 9, 0.0);
     svd_decompose(W, U, S, V);
     //estimate F as last col of Vt
-//    std::vector<double> f = Vt.get_column(Vt.cols() - 1);//
-//    std::cout<<"USV" << W<<'\n'<<S<<'\n'<<V<<'\n';    // before rank 2 setting in F, with normalised coordinates
     mat3 F_q_unrank;
 
     int ind=0;
@@ -205,11 +171,11 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     }
     std::cout<<"F after denormalisation and normalising last value to 1 is \n"<< F <<'\n';
 
-    //      - compute the essential matrix E;
+    // compute the essential matrix E;
     // assuming that we can make the intrinsic matrix from the cx cy fx fy
     //make vectors k and k'
     K = Matrix<double> (3,3,
-                        std::vector<double> {fx,1.0,cx,
+                        std::vector<double> {fx,0.0,cx,
                                                   0.0,fy,cy,
                                                   0.0,0.0,1.0});
     E = K.transpose() * to_Matrix(F) * K;
@@ -233,76 +199,18 @@ Matrix<double> get_KRT( Matrix<double> R, std::vector<double> T, Matrix<double> 
     return krt;
 }
 
-int rt_decider( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1)
+/**
+ * TODO: Finish this function for reconstructing 3D geometry from corresponding image points.
+ * @return True on success, otherwise false. On success, the reconstructed 3D points must be written to 'points_3d'.
+ */
+
+int rt_decide_and_pt_make( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1, std::vector<vec3> & pt3d)
 {
     //vec3 p, vec3 p_prime ,
     /* create M matrix for given R T and K in the equation AP=0
      * then runs SVD to compute for P for a given point
      */
-    // pt_0 for m2 [i|o]
-    // pt_1 for m1;
-    Matrix<double> M2 = get_KRT(R,T,K);
-    Matrix<double> M1 (3,4,0.0);
-
-    std::vector<double> I_row1 {1.0, 0.0, 0.0, 0.0};
-    std::vector<double> I_row2 {0.0, 1.0, 0.0, 0.0};
-    std::vector<double> I_row3 {0.0, 0.0, 1.0, 0.0};
-    M1.set_row( I_row1, 0);
-    M1.set_row( I_row2, 1);
-    M1.set_row( I_row3, 2);
-    std::cout<<"m1 set\n";
-    //randomly pick points to choose the side of the orientation
-    //for now deal with 30 at interval of 5
-
-    Matrix<double> U(4,4, 0.0);
-    Matrix<double> S(4,4, 0.0);
-    Matrix<double> Vt(4,4, 0.0);
-    int s=0;
-    std::cout<<"size of points is \t"<<pts_0.size()<<'\n';
-    for(int i=0; i < pts_0.size(); i++)
-    {
-        //compute A matrix for a selected point
-        Matrix<double> A (4,4,0.0);
-        A.set_row( pts_0[i].x * M2.get_row(2) - M2.get_row(0), 0);
-        A.set_row( pts_0[i].y * M2.get_row(2) - M2.get_row(1), 1);
-        A.set_row( pts_1[i].x * M1.get_row(2) - M1.get_row(0), 2);
-        A.set_row( pts_1[i].y * M1.get_row(2) - M1.get_row(1), 3);
-
-        //sun SVD of A, to get P matrix contained in last col of V vector
-        svd_decompose(A, U, S, Vt);
-        std::vector<double> p = U.get_column(U.cols() - 1);
-        vec3 p_vec3 (p[0]/p[3],p[1]/p[3],p[2]/p[3]);
-        vec3 t_vec3 (T[0],T[1],T[2]);
-//        Matrix<double> P (4,1, p);
-        //check if p.z is mositive
-        vec3 pt_in_cam2 =  to_mat3(R) * p_vec3 + t_vec3;
-        if( p[2] > 0 )
-        {
-            if(pt_in_cam2[2]>0)
-            s++;
-        }
-
-
-
-    }
-
-    return s;
-
-//    std::cout<<"\nR is " <<R<<'\n';
-//    std::cout<<"\nT is " <<T<<'\n';
-//    std::cout<<"\nRT is " <<RT<<'\n';
-    std::cout<<"K is \n"<<K<<'\n';
-}
-
-void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1, std::vector<vec3> & pt3d)
-{
     pt3d.clear();
-    //vec3 p, vec3 p_prime ,
-    /* create M matrix for given R T and K in the equation AP=0
-     * then runs SVD to compute for P for a given point
-     */
-    // pt_0 for m2 [i|o]
-    // pt_1 for m1;
     Matrix<double> M1 = get_KRT(R,T,K);
     Matrix<double> R0 (3,3,1.0);
     R0.load_identity();
@@ -310,20 +218,12 @@ void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , 
 
     Matrix<double> M0 = get_KRT(R0,T0,K);
 
-//
-//    Matrix<double> M0 (3,4,0.0);
-//
-//    M0.set_column( std::vector<double> {1.0, 0.0, 0.0} , 0);
-//    M0.set_column( std::vector<double> {0.0, 1.0, 0.0} , 1);
-//    M0.set_column( std::vector<double> {0.0, 0.0, 1.0} , 2);
-
     //randomly pick points to choose the side of the orientation
     //for now deal with 30 at interval of 5
 
     Matrix<double> U(4,4, 0.0);
     Matrix<double> S(4,4, 0.0);
     Matrix<double> Vt(4,4, 0.0);
-
 
     std::vector<double> m1 = M0.get_row(0);
     std::vector<double> m2 = M0.get_row(1);
@@ -333,7 +233,7 @@ void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , 
     std::vector<double> m2_prime = M1.get_row(1);
     std::vector<double> m3_prime = M1.get_row(2);
 
-
+    int point_is_positive_in_both_views = 0;
     for(int i=0; i<pts_0.size(); i++)
     {
         Matrix<double> A (4,4,0.0);
@@ -342,28 +242,30 @@ void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , 
 
         A.set_row( pts_1[i].x/pts_1[i].z * m3_prime - m1_prime,2);
         A.set_row( pts_1[i].y/pts_1[i].z * m3_prime - m2_prime,3);
-//
-//        A.set_row( pts_1[i].x * M1.get_row(2) - M1.get_row(0), 2);
-//        A.set_row( pts_1[i].y * M1.get_row(2) - M1.get_row(1), 3);
-
-std::cout << i << ": \n" << A << std::endl;
-
 
         // sun SVD of A, to get P matrix contained in last col of V vector
         svd_decompose(A, U, S, Vt);
         std::vector<double> p = Vt.get_column(Vt.cols() - 1);
-        vec3 temporary (p[0]/p[3], p[1]/p[3], p[2]/p[3]) ;
-        pt3d.push_back( temporary );
+        vec3 p_vec3 (p[0]/p[3],p[1]/p[3],p[2]/p[3]);
+        vec3 t_vec3 (T[0],T[1],T[2]);
+
+        //check if p.z is positive
+        vec3 pt_in_cam2 =  to_mat3(R) * p_vec3 + t_vec3;
+        if( p[2] > 0 )
+        {
+            if(pt_in_cam2[2]>0)
+            {
+                point_is_positive_in_both_views++;
+            }
+        }
+        pt3d.push_back( p_vec3 );
     }
+    return point_is_positive_in_both_views;
 
 }
 
 
 
-/**
- * TODO: Finish this function for reconstructing 3D geometry from corresponding image points.
- * @return True on success, otherwise false. On success, the reconstructed 3D points must be written to 'points_3d'.
- */
 bool Triangulation::triangulation(
         float fx, float fy,     /// input: the focal lengths (same for both cameras)
         float cx, float cy,     /// input: the principal point (same for both cameras)
@@ -374,17 +276,14 @@ bool Triangulation::triangulation(
         vec3 &t    /// output: recovered translation of 2nd camera (used for updating the viewer and visual inspection)
 ) const
 {
-    // TODO: delete all above demo code in the final submission
-
-    //--------------------------------------------------------------------------------------------------------------
     // implementation starts ...
 
-    // TODO: check if the input is valid (always good because you never known how others will call your function).
+    //check if the input is valid (always good because you never known how others will call your function).
     std::cout<<"checking print statement\n";
     if(points_0.size() <8 || points_1.size()<8 || points_0.size() != points_1.size() ) return false;
     std::cout<<"if doesnt return \n";
 
-    // TODO: Estimate relative pose of two views. This can be subdivided into
+    // Estimate relative pose of two views. This can be subdivided into
     //      - estimate the fundamental matrix F;
     //NORMalize, SVD get f, SVD rank 2 check, DEnormalize
     Matrix<double> E, K;
@@ -441,11 +340,11 @@ bool Triangulation::triangulation(
         for( auto &j: R_types)
         {
 //            std::cout<<"in loop again \n";
-            int ret = rt_decider(j, i, K, q, q_prime);
+            int ret = rt_decide_and_pt_make(j, i, K, points_0, points_1, points_3d);
             if( no_of_positive_points < ret )
             {
                 no_of_positive_points = ret;
-                std::cout<<"nomber of points positive \t"<<no_of_positive_points<<'\n' ;
+                std::cout<<"number of points positive \t"<<no_of_positive_points<<'\n' ;
                 //also store the r and t
                 t_store = i;
                 r_store = j;
@@ -454,10 +353,14 @@ bool Triangulation::triangulation(
     }
     R = to_mat3(r_store);
     t = vec3 (t_store[0],t_store[1],t_store[2] );
+
     //final rstore and tstore should be here
     std::cout<<"the best r and t are \n"<<r_store<<'\n'<<t_store <<'\n';
-//    std::cout<<"E as multiplication \n"<< Ue * to_Matrix(mat3::scale(1,1,0)) * (We*Ue.transpose()*R)<<'\n';
-    points_3d_gen( r_store, t_store, K ,points_0, points_1,  points_3d);
+    rt_decide_and_pt_make(r_store, t_store, K, points_0, points_1, points_3d);
+    return points_3d.size() > 0;
+}
+
+void liangliang() {
 
 
     // TODO: Don't forget to
@@ -470,11 +373,8 @@ bool Triangulation::triangulation(
     //          - function not implemented yet;
     //          - input not valid (e.g., not enough points, point numbers don't match);
     //          - encountered failure in any step.
-    return points_3d.size() > 0;
-//    return true;
-}
 
-void liangliang() {
+
 //for all the stuff liang liang gave us
 
     /// NOTE: there might be multiple workflows for reconstructing 3D geometry from corresponding image points.
