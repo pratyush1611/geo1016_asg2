@@ -54,21 +54,21 @@ Matrix<double> to_Matrix(const mat &M) {
     return result;
 }
 
-void norm_transform(mat3 &t , std::vector<vec3> &pts)
+void norm_transform(mat3 &t , std::vector<vec3> pts_input, std::vector<vec3> &pts_output )
 {
 //    Matrix<double> T (3,3, 0.0);
     //1st calculate the centroid
-
+    pts_output = pts_input;
     float avgx = 0.0;
     float avgy = 0.0;
-    for(auto & i : pts)
+    for(auto & i : pts_input)
     {
-        avgx += i.x;
-        avgy += i.y;
+        avgx += i.x/i.z;
+        avgy += i.y/i.z;
     }
 
-    avgx/=pts.size() ;
-    avgy/=pts.size() ;
+    avgx/=pts_input.size() ;
+    avgy/=pts_input.size() ;
 
     vec3 centrd {avgx, avgy, 1.0};
 //    make translation matrix
@@ -79,51 +79,39 @@ void norm_transform(mat3 &t , std::vector<vec3> &pts)
     //get mean distances
 
     double mean_dist=0.0;
-    for(auto & j : pts)
+    for(auto & j : pts_input)
     {
-//        vec3 temp = j - centrd;
-//        mean_dist += temp.length();
-        mean_dist += j.length() ;
+        vec3 temp = j - centrd;
+        mean_dist += temp.length();
     }
-    mean_dist/=pts.size();
+    mean_dist/=pts_input.size();
 
     float s = sqrt(2.0)/mean_dist;
     mat3 S = mat3::scale (s, s,1.0);
-/*
-    T.set_row({mean_dist, 0.0, 0.0},0);
-    T.set_row({0.0, mean_dist, 0.0},1);
-    T.set_row({-1.0*centrd.x, -1.0*centrd.y, 1.0},2);
 
-    t= to_mat3( T.transpose() ); //returns matrix for scaling and translating
-
-    T.set_row({mean_dist, mean_dist, 1.0},0);
-    T.set_row({mean_dist, mean_dist, 1.0},1);
-    T.set_row({-1.0*mean_dist*centrd.x, -1.0*mean_dist*centrd.y, 1.0 },2);
-
-
-    t= to_mat3( T.transpose() ); //returns matrix for scaling and translating
-*/
     t = S*T;
-
-    for(auto &i: pts)
+    std::cout<<"ST matrix\n"<<t<<'\n';
+    for(int i=0; i<pts_input.size(); i++)
     {
-        i = t * i;
+        vec3 temp_v = t* pts_input[i];
+        pts_output[i] = temp_v / temp_v.z  ;
     }
+
 
 }
 
 
 void Essentialator(float fx, float fy,     float cx, float cy,
                    const std::vector<vec3> &points_0, const std::vector<vec3> &points_1,
-                   Matrix<double> &E, Matrix<double> &K)
+                   Matrix<double> &E, Matrix<double> &K, std::vector<vec3> &q, std::vector<vec3> &q_prime)
 {
     //make copies of points
-    std::vector<vec3> q=points_0;
-    std::vector<vec3> q_prime = points_1;
-    // to normalize get T and T'
+//    std::vector<vec3> q=points_0;
+//    std::vector<vec3> q_prime = points_1;
+//    // to normalize get T and T'
     mat3 T, T_prime;
-    norm_transform(T, q);
-    norm_transform(T_prime, q_prime);
+    norm_transform(T, points_0,q);
+    norm_transform(T_prime, points_1, q_prime);
 
 //    std::cout<<"\nT  is \n"<<T<<'\n';
 //    std::cout<<"\nT' is \n"<<T_prime<<'\n';
@@ -144,6 +132,17 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     */
     //comput W matrix
     // w has a size of Nx9; N = number of points
+//    int indx =0;
+//    for(auto l: q)
+//    {
+//        std::cout<<indx++<<"\t"<<l<<'\n';
+//    }
+//    int indx2=0;
+//    for(auto l: q_prime)
+//    {
+//        std::cout<<indx2++<<"\t"<<l<<'\n';
+//    }
+
     int no_pt = points_0.size();
     Matrix<double> W(no_pt, 9, 0.0); // all entries initialized to 0.0.
     // iterate through the vector of points and craete rows of W on the go
@@ -161,33 +160,23 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     //SVD decomposition of the above W-matrix
     Matrix<double> U(no_pt, no_pt, 0.0);
     Matrix<double> S(no_pt, 9, 0.0);
-    Matrix<double> Vt(9, 9, 0.0);
-    svd_decompose(W, U, S, Vt);
+    Matrix<double> V(9, 9, 0.0);
+    svd_decompose(W, U, S, V);
     //estimate F as last col of Vt
-//    std::vector<double> f = Vt.get_column(Vt.cols() - 1);
-//    std::cout<<"USV" << W<<'\n'<<S<<'\n'<<Vt<<'\n';
-    // before rank 2 setting in F, with normalised coordinates
+//    std::vector<double> f = Vt.get_column(Vt.cols() - 1);//
+//    std::cout<<"USV" << W<<'\n'<<S<<'\n'<<V<<'\n';    // before rank 2 setting in F, with normalised coordinates
     mat3 F_q_unrank;
+
     int ind=0;
     for(int i=0; i<3;i++)
     {
         for(int j=0;j<3;j++)
         {
-            F_q_unrank(i,j) = Vt(ind,8) ;
+            F_q_unrank(i,j) = V(ind,8) ;
             ind++;
         }
-
     }
-    /*
-    vec3 r1 (f[0],f[1],f[2]);
-    vec3 r2 (f[3],f[4],f[5]);
-    vec3 r3 (f[6],f[7],f[8]); //last value set to 1.0 because so is asked in assignment
-
-    F_q_unrank.set_row(0, r1);
-    F_q_unrank.set_row(1, r2);
-    F_q_unrank.set_row(2, r3);
-    */
-
+    std::cout<<"Fq unrank \n"<<F_q_unrank<<'\n';
     Matrix<double> Ua (3,3,0.0);
     Matrix<double> Sa (3,3,0.0);
     Matrix<double> Va_T (3,3,0.0);
@@ -220,12 +209,12 @@ void Essentialator(float fx, float fy,     float cx, float cy,
     // assuming that we can make the intrinsic matrix from the cx cy fx fy
     //make vectors k and k'
     K = Matrix<double> (3,3,
-                        std::vector<double> {fx,0.0,cx,
+                        std::vector<double> {fx,1.0,cx,
                                                   0.0,fy,cy,
                                                   0.0,0.0,1.0});
     E = K.transpose() * to_Matrix(F) * K;
     std::cout<<"E\n"<<E<<std::endl;
-//    std::cout<<"K\n"<<K<<std::endl;
+    std::cout<<"K\n"<<K<<std::endl;
 
 }
 
@@ -240,8 +229,8 @@ Matrix<double> get_KRT( Matrix<double> R, std::vector<double> T, Matrix<double> 
 
     RT.set_column( T , 3);
 
-    Matrix<double> M = K* RT;
-    return M;
+    Matrix<double> krt = K* RT;
+    return krt;
 }
 
 int rt_decider( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1)
@@ -252,23 +241,25 @@ int rt_decider( Matrix<double> R, std::vector<double> T, Matrix<double> K , std:
      */
     // pt_0 for m2 [i|o]
     // pt_1 for m1;
-    Matrix<double> M1 = get_KRT(R,T,K);
-    Matrix<double> M2 (3,4,0.0);
-    std::vector<double> I_row1 {0.0, 0.0, 1.0, 0.0};
-    std::vector<double> I_row2 {0.0, 0.0, 1.0, 0.0};
+    Matrix<double> M2 = get_KRT(R,T,K);
+    Matrix<double> M1 (3,4,0.0);
+
+    std::vector<double> I_row1 {1.0, 0.0, 0.0, 0.0};
+    std::vector<double> I_row2 {0.0, 1.0, 0.0, 0.0};
     std::vector<double> I_row3 {0.0, 0.0, 1.0, 0.0};
-    M2.set_row( I_row1, 0);
-    M2.set_row( I_row2, 1);
-    M2.set_row( I_row3, 2);
-    std::cout<<"m2 set\n";
+    M1.set_row( I_row1, 0);
+    M1.set_row( I_row2, 1);
+    M1.set_row( I_row3, 2);
+    std::cout<<"m1 set\n";
     //randomly pick points to choose the side of the orientation
     //for now deal with 30 at interval of 5
 
-    Matrix<double> U(3,3, 0.0);
-    Matrix<double> S(3,3, 0.0);
-    Matrix<double> Vt(3,3, 0.0);
+    Matrix<double> U(4,4, 0.0);
+    Matrix<double> S(4,4, 0.0);
+    Matrix<double> Vt(4,4, 0.0);
     int s=0;
-    for(int i=0; i <= pts_0.size(); i+=5)
+    std::cout<<"size of points is \t"<<pts_0.size()<<'\n';
+    for(int i=0; i < pts_0.size(); i++)
     {
         //compute A matrix for a selected point
         Matrix<double> A (4,4,0.0);
@@ -280,10 +271,19 @@ int rt_decider( Matrix<double> R, std::vector<double> T, Matrix<double> K , std:
         //sun SVD of A, to get P matrix contained in last col of V vector
         svd_decompose(A, U, S, Vt);
         std::vector<double> p = U.get_column(U.cols() - 1);
+        vec3 p_vec3 (p[0]/p[3],p[1]/p[3],p[2]/p[3]);
+        vec3 t_vec3 (T[0],T[1],T[2]);
 //        Matrix<double> P (4,1, p);
         //check if p.z is mositive
-        std::cout<<"wir sind hier!\n";
-        if( p[2] > 0 ) s++;
+        vec3 pt_in_cam2 =  to_mat3(R) * p_vec3 + t_vec3;
+        if( p[2] > 0 )
+        {
+            if(pt_in_cam2[2]>0)
+            s++;
+        }
+
+
+
     }
 
     return s;
@@ -291,11 +291,12 @@ int rt_decider( Matrix<double> R, std::vector<double> T, Matrix<double> K , std:
 //    std::cout<<"\nR is " <<R<<'\n';
 //    std::cout<<"\nT is " <<T<<'\n';
 //    std::cout<<"\nRT is " <<RT<<'\n';
-//    std::cout<<"K is \n"<<K<<'\n';
+    std::cout<<"K is \n"<<K<<'\n';
 }
 
 void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , std::vector<vec3> pts_0, std::vector<vec3> pts_1, std::vector<vec3> & pt3d)
 {
+    pt3d.clear();
     //vec3 p, vec3 p_prime ,
     /* create M matrix for given R T and K in the equation AP=0
      * then runs SVD to compute for P for a given point
@@ -303,11 +304,18 @@ void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , 
     // pt_0 for m2 [i|o]
     // pt_1 for m1;
     Matrix<double> M1 = get_KRT(R,T,K);
-    Matrix<double> M2 (3,4,0.0);
+    Matrix<double> R0 (3,3,1.0);
+    R0.load_identity();
+    std::vector<double> T0 = {0.0,0.0,0.0};
 
-    M2.set_column( std::vector<double> {1.0, 0.0, 0.0} , 0);
-    M2.set_column( std::vector<double> {0.0, 1.0, 0.0} , 1);
-    M2.set_column( std::vector<double> {0.0, 0.0, 1.0} , 2);
+    Matrix<double> M0 = get_KRT(R0,T0,K);
+
+//
+//    Matrix<double> M0 (3,4,0.0);
+//
+//    M0.set_column( std::vector<double> {1.0, 0.0, 0.0} , 0);
+//    M0.set_column( std::vector<double> {0.0, 1.0, 0.0} , 1);
+//    M0.set_column( std::vector<double> {0.0, 0.0, 1.0} , 2);
 
     //randomly pick points to choose the side of the orientation
     //for now deal with 30 at interval of 5
@@ -316,21 +324,35 @@ void points_3d_gen( Matrix<double> R, std::vector<double> T, Matrix<double> K , 
     Matrix<double> S(4,4, 0.0);
     Matrix<double> Vt(4,4, 0.0);
 
-    int s=0;
+
+    std::vector<double> m1 = M0.get_row(0);
+    std::vector<double> m2 = M0.get_row(1);
+    std::vector<double> m3 = M0.get_row(2);
+
+    std::vector<double> m1_prime = M1.get_row(0);
+    std::vector<double> m2_prime = M1.get_row(1);
+    std::vector<double> m3_prime = M1.get_row(2);
+
 
     for(int i=0; i<pts_0.size(); i++)
     {
         Matrix<double> A (4,4,0.0);
-        A.set_row( pts_0[i].y * M2.get_row(2) - M2.get_row(1), 1);
-        A.set_row( pts_1[i].x * M1.get_row(2) - M1.get_row(0), 2);
+        A.set_row( pts_0[i].x/pts_0[i].z * m3 - m1,0);
+        A.set_row( pts_0[i].y/pts_0[i].z * m3 - m2,1);
 
-        A.set_row( pts_0[i].x * M2.get_row(2) - M2.get_row(0), 0);
-        A.set_row( pts_1[i].y * M1.get_row(2) - M1.get_row(1), 3);
+        A.set_row( pts_1[i].x/pts_1[i].z * m3_prime - m1_prime,2);
+        A.set_row( pts_1[i].y/pts_1[i].z * m3_prime - m2_prime,3);
+//
+//        A.set_row( pts_1[i].x * M1.get_row(2) - M1.get_row(0), 2);
+//        A.set_row( pts_1[i].y * M1.get_row(2) - M1.get_row(1), 3);
+
+std::cout << i << ": \n" << A << std::endl;
+
 
         // sun SVD of A, to get P matrix contained in last col of V vector
         svd_decompose(A, U, S, Vt);
         std::vector<double> p = Vt.get_column(Vt.cols() - 1);
-        vec3 temporary (p[0], p[1], p[2]) ;
+        vec3 temporary (p[0]/p[3], p[1]/p[3], p[2]/p[3]) ;
         pt3d.push_back( temporary );
     }
 
@@ -366,7 +388,9 @@ bool Triangulation::triangulation(
     //      - estimate the fundamental matrix F;
     //NORMalize, SVD get f, SVD rank 2 check, DEnormalize
     Matrix<double> E, K;
-    Essentialator(fx, fy, cx, cy, points_0, points_1, E, K);
+    std::vector<vec3> q;
+    std::vector<vec3> q_prime;//
+    Essentialator(fx, fy, cx, cy, points_0, points_1, E, K, q, q_prime);
 
     //      - recover rotation R and t.
     //set values for W and Z
@@ -391,7 +415,9 @@ bool Triangulation::triangulation(
     Matrix<double> R2 = determinant(Ue * We.transpose() * Vt_e.transpose()) * Ue * We.transpose() * Vt_e.transpose();
     std::vector< Matrix<double> > R_types {R1, R2 };
 
-//    std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
+    std::cout<<"translation vectors\n"<< t_1<<'\n'<< t_2<<'\n';
+    std::cout<<"U matrix\n"<< Ue;
+    std::cout<<"UZU' matrix\n"<< Ue * Z * Ue.transpose();
     std::cout<<"R1\n"<<R1<<"\nR2\n"<<R2<<"\ndetR1\n"<<determinant(R1)<<"\ndetR2\n"<<determinant(R2)<<'\n';
 
 
@@ -406,11 +432,7 @@ bool Triangulation::triangulation(
      * check rank of positive returned for the 4 combinations
      * once returned, check for
      */
-//    for(int i=0; i< 30; i++)
-//    {
-////        points_0[i];
-//        tiangulator( R1, t_1, K );
-//    }
+
     Matrix<double> r_store = R1;
     std::vector<double> t_store = t_1;
     int no_of_positive_points =0;
@@ -418,21 +440,24 @@ bool Triangulation::triangulation(
     {
         for( auto &j: R_types)
         {
-            std::cout<<"in loop again \n";
-            int ret = rt_decider(j, i, K, points_0, points_1);
+//            std::cout<<"in loop again \n";
+            int ret = rt_decider(j, i, K, q, q_prime);
             if( no_of_positive_points < ret )
             {
                 no_of_positive_points = ret;
+                std::cout<<"nomber of points positive \t"<<no_of_positive_points<<'\n' ;
                 //also store the r and t
                 t_store = i;
                 r_store = j;
             }
         }
     }
-
+    R = to_mat3(r_store);
+    t = vec3 (t_store[0],t_store[1],t_store[2] );
     //final rstore and tstore should be here
     std::cout<<"the best r and t are \n"<<r_store<<'\n'<<t_store <<'\n';
-    points_3d_gen( r_store, t_store, K , points_0, points_1 , points_3d);
+//    std::cout<<"E as multiplication \n"<< Ue * to_Matrix(mat3::scale(1,1,0)) * (We*Ue.transpose()*R)<<'\n';
+    points_3d_gen( r_store, t_store, K ,points_0, points_1,  points_3d);
 
 
     // TODO: Don't forget to
